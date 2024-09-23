@@ -4,9 +4,6 @@ import math
 TRAIN_FILE='./bank/train.csv'
 TEST_FILE='./bank/test.csv'
 
-columns=['age','job','marital','education','default','balance','housing','loan','contact','day','month','duration','campaign','pdays','previous','poutcome','label']
-attributes=['age','job','marital','education','default','balance','housing','loan','contact','day','month','duration','campaign','pdays','previous','poutcome']
-
 
 ATTRIBUTES,MST=None,None
 
@@ -71,9 +68,8 @@ def get_subset(S,attr,value):
     return dataset
 
 def Log(a):
-    return -a*math.log2(a)
-
-# To determine entropy of the data
+    return -a*math.log2(a)      
+        
 def Entropy(dic,sum):
     res=0
     for key in dic.keys():
@@ -82,7 +78,9 @@ def Entropy(dic,sum):
         res+=Log(dic[key]/sum)
     return res
 
-# To determine gini index heuristics
+def ME(dic,sum):
+    return sorted(dic.items(), key=lambda x: x[1])[0][1]/sum
+
 def GI(dic,sum):
     res=1
     for key in dic.keys():
@@ -91,24 +89,23 @@ def GI(dic,sum):
         res-=(dic[key]/sum)**2
     return res
 
-
-def ME(dic,sum): # To determine majority error
-    return sorted(dic.items(), key=lambda x: x[1])[0][1]/sum
-
-
-# To determine Gain
-def Gain(entropy,attribute,data,algo='Entropy'):
-    gain=entropy
+def Gain(entropy, attribute, data, algo='Entropy'):
+    gain = entropy
     for value in data[attribute].keys():
-        if value=='sum':
+        if value == 'sum':
             continue
-        if algo=='Entropy':
-            nbr=Entropy(data[attribute][value],data[attribute][value]['sum'])
-        elif algo=='ME':
-            nbr=ME(data[attribute][value],data[attribute][value]['sum'])
-        elif algo=='GI':
-            nbr=GI(data[attribute][value],data[attribute][value]['sum'])
-        gain-=(data[attribute][value]['sum']/data['sum'])*nbr
+        
+        # Compute the measure based on the specified algorithm
+        if algo == 'Entropy':
+            nbr = Entropy(data[attribute][value], data[attribute][value]['sum'])
+        elif algo == 'ME':
+            nbr = ME(data[attribute][value], data[attribute][value]['sum'])
+        elif algo == 'GI':
+            nbr = GI(data[attribute][value], data[attribute][value]['sum'])
+        
+        # Adjust the gain by subtracting the weighted measure
+        gain -= (data[attribute][value]['sum'] / data['sum']) * nbr
+    
     return gain
 
 
@@ -117,131 +114,143 @@ class Node:
         self.data=label
         self.children={}
 
-def analyse_data(S):
+def analyse(S):
     global columns
-    col=[]
+    column_names = []
+
+    # Collect the names of all columns from the first sample
     for label in S[0].keys():
-        col.append(label)
-    attr=def_data(col)
-    attr['sum']=0
+        column_names.append(label)
 
+    attributes = def_data(column_names)
+    attributes['sum'] = 0
+
+    # Process each sample to gather attribute data
     for sample in S:
-        attr['sum']+=1
-        for label in col:
-            if label==columns[-1]:
-                if sample[label] not in attr[label].keys():
-                    attr[label][sample[label]]=0
-                attr[label][sample[label]]+=1
-            else:
-                if sample[label] not in attr[label].keys():
-                    attr[label][sample[label]]={'sum':0}
-                attr[label][sample[label]]['sum']+=1
-                if sample[columns[-1]] not in attr[label][sample[label]].keys():
-                    attr[label][sample[label]][sample[columns[-1]]]=0
-                attr[label][sample[label]][sample[columns[-1]]]+=1
-    return attr
+        attributes['sum'] += 1
 
-def get_best_attr(attr,algo='Entropy'):
-    col=[]
-    for label in attr.keys():
-        if label!='sum':
-            col.append(label)
-    result={}
-    for a in col:
-        if a=='label':
+        for label in column_names:
+            if label == columns[-1]:  # Check if it's the target label
+                if sample[label] not in attributes[label]:
+                    attributes[label][sample[label]] = 0
+                attributes[label][sample[label]] += 1
+            else:  # Process other attributes
+                if sample[label] not in attributes[label]:
+                    attributes[label][sample[label]] = {'sum': 0}
+
+                attributes[label][sample[label]]['sum'] += 1
+
+                if sample[columns[-1]] not in attributes[label][sample[label]]:
+                    attributes[label][sample[label]][sample[columns[-1]]] = 0
+                attributes[label][sample[label]][sample[columns[-1]]] += 1
+
+    return attributes
+
+
+    
+def get_best_attr(attr, algo='Entropy'):
+    attribute_list = [label for label in attr.keys() if label != 'sum']
+    gain_values = {}
+
+    for attribute in attribute_list:
+        if attribute == 'label':
             continue
-        if algo=='Entropy':
-            result[a]=Gain(Entropy(attr['label'],attr['sum']),a,attr,algo='Entropy')
-        elif algo=='ME':
-            result[a]=Gain(ME(attr['label'],attr['sum']),a,attr,algo='ME')
-        elif algo=='GI':
-            result[a]=Gain(GI(attr['label'],attr['sum']),a,attr,algo='GI')
-    return sorted(result.items(), key=lambda x: x[1], reverse=True)[0][0]
+        if algo == 'Entropy':
+            gain_values[attribute] = Gain(Entropy(attr['label'], attr['sum']), attribute, attr, algo='Entropy')
+        elif algo == 'ME':
+            gain_values[attribute] = Gain(ME(attr['label'], attr['sum']), attribute, attr, algo='ME')
+        elif algo == 'GI':
+            gain_values[attribute] = Gain(GI(attr['label'], attr['sum']), attribute, attr, algo='GI')
 
-MAX_LAY=0
+    return sorted(gain_values.items(), key=lambda x: x[1], reverse=True)[0][0]
 
-def ID3_algorithm(S,Attributes,level,max_level=0,algo='Entropy'):
+MAX_LAY = 0
+
+
+def ID3_algorithm(S, Attributes, level, max_level=0, algo='Entropy'):
     global MAX_LAY
-    if level>MAX_LAY:
-        MAX_LAY=level
-    label_dic={}
+    if level > MAX_LAY:
+        MAX_LAY = level
+
+    label_counts = {}
     for sample in S:
-        if sample['label'] not in label_dic.keys():
-            label_dic[sample['label']]=0
-        label_dic[sample['label']]+=1
-    label_sorted=sorted(label_dic.items(), key=lambda x: x[1], reverse=True)
-    if len(label_dic.keys())==1:
-        return Node(label_sorted[0][0])
-    if len(Attributes)==0:
-        return Node(label_sorted[0][0])
-    if max_level>0 and level>max_level:
-        return Node(label_sorted[0][0])
+        label = sample['label']
+        label_counts[label] = label_counts.get(label, 0) + 1
 
-    A=get_best_attr(analyse(S),algo)
-    #print(A)
-    n=Node(A)
-    for value in ATTRIBUTES[A]:
-        Sv=get_subset(S,A,value)
-        #print(Sv)
-        if len(Sv)==0:
-            n.children[value]=Node(label_sorted[0][0])
+    sorted_labels = sorted(label_counts.items(), key=lambda x: x[1], reverse=True)
+
+    if len(label_counts) == 1:
+        return Node(sorted_labels[0][0])
+    if not Attributes:
+        return Node(sorted_labels[0][0])
+    if max_level > 0 and level > max_level:
+        return Node(sorted_labels[0][0])
+
+    best_attribute = get_best_attr(analyse(S), algo)
+
+    node = Node(best_attribute)
+    for value in ATTRIBUTES[best_attribute]:
+        subset = get_subset(S, best_attribute, value)
+
+        if not subset:
+            node.children[value] = Node(sorted_labels[0][0])
         else:
-            Attr=[]
-            for a in Attributes:
-                if a!=A:
-                    Attr.append(a)
-            n.children[value]= ID3(Sv,Attr,level+1,max_level)
-        #print(A+':'+value+'->'+n.children[value].data)
-    return n
+            remaining_attributes = [a for a in Attributes if a != best_attribute]
+            node.children[value] = ID3_algorithm(subset, remaining_attributes, level + 1, max_level)
 
-def get_val(dic,key):
-    if key in dic.keys():
+    return node
+
+
+def get_val(dic, key):
+    if key in dic:
         return dic[key]
     else:
-        minn=9999
-        mink=''
-        for k in dic.keys():
-            dif=abs(int(k)-int(key))
-            if dif<minn:
-                minn=dif
-                mink=k
-        return dic[mink]
+        min_difference = float('inf')
+        nearest_key = ''
+        for k in dic:
+            difference = abs(int(k) - int(key))
+            if difference < min_difference:
+                min_difference = difference
+                nearest_key = k
+        return dic[nearest_key]
 
 
-def predict(root,sample):
-    if len(root.children)==0:
+
+def predict(root, sample):
+    if not root.children:
         return root.data
     else:
-        return predict(get_val(root.children,sample[root.data]),sample)
+        return predict(get_val(root.children, sample[root.data]), sample)
+
 
 def test(root, S):
-    corr=0
-    summ=0
+    correct_predictions = 0
+    total_samples = 0
     for sample in S:
-        summ+=1
-        y=predict(root,sample)
-        if y==sample[columns[-1]]:
-            corr+=1
-    print('err: '+str((summ-corr)/summ))
+        total_samples += 1
+        predicted_value = predict(root, sample)
+        if predicted_value == sample[columns[-1]]:
+            correct_predictions += 1
+    print('Error rate: ' + str((total_samples - correct_predictions) / total_samples))
 
 
-def run_test(train_data,test_data):
-    for i in range(1,17):
-        print('level='+str(i))
-        print('Entropy: ',end='')
-        test(ID3_algorithm(train_data,attributes,1,i,'Entropy'),test_data)
-        print('ME: ',end='')
-        test(ID3_algorithm(train_data,attributes,1,i,'ME'),test_data)
-        print('GI: ',end='')
-        test(ID3_algorithm(train_data,attributes,1,i,'GI'),test_data)
+def run_test(train_data, test_data):
+    for i in range(1, 17):
+        print(f'Level: {i}')
+        print('Entropy: ', end='')
+        test(ID3_algorithm(train_data, attributes, 1, i, 'Entropy'), test_data)
+        print('Majority Error: ', end='')
+        test(ID3_algorithm(train_data, attributes, 1, i, 'ME'), test_data)
+        print('Gini Index: ', end='')
+        test(ID3_algorithm(train_data, attributes, 1, i, 'GI'), test_data)
+
 
 def main():
     init_attr()
     train_data_reader=csv.reader(open(TRAIN_FILE,'r'))
     test_data_reader=csv.reader(open(TEST_FILE,'r'))
 
-    # the 'unknown' values will be replace when the second parameter is 1
-    # the 'unknown' values will be retained when the second parameter is 0
+   
     train_data=init_data(train_data_reader,1)
     test_data=init_data(test_data_reader,1)
 
