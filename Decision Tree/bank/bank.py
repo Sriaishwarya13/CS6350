@@ -222,7 +222,6 @@ def test(root, S):
         y=predict(root,sample)
         if y==sample[columns[-1]]:
             corr+=1
-    #print('acc: '+str(corr/summ))
     print('err: '+str((summ-corr)/summ))
 
 
