@@ -90,11 +90,11 @@ if __name__ == '__main__':
 
     model = LinearRegression()
 
-    if sys.argv[1] == "bgd":
+    if sys.argv[1] == "batch":
         final_weights = model.fit_batch(train_data, train_targets)
         print("Final Weights: ", final_weights)
         print("Test Cost: ", model._compute_cost(test_data, test_targets, final_weights))
-    elif sys.argv[1] == "sgd":
+    elif sys.argv[1] == "stoch":
         final_weights = model.fit_stochastic(train_data, train_targets)
         print("Final Weights: ", final_weights)
         print("Test Cost: ", model._compute_cost(test_data, test_targets, final_weights))
