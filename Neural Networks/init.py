@@ -1,6 +1,6 @@
-import neural
 import numpy as np
 import os
+import nn
 import matplotlib.pyplot as plt
 
 output_dir = "./out/"
