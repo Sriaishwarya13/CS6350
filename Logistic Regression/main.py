@@ -3,9 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
+output_dir = "./out/"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+dataset_path = "../data/bank-note/"
+
 def load_data():
-    train_data = pd.read_csv('classification/train.csv', header=None)
-    test_data = pd.read_csv('classification/test.csv', header=None)
+    train_data = pd.read_csvload_dataset(dataset_path + "train.csv", header=None)
+    test_data = pd.read_csvload_dataset(dataset_path + "test.csv", header=None)
     X_train = train_data.iloc[:, :-1].values
     y_train = train_data.iloc[:, -1].values
     X_test = test_data.iloc[:, :-1].values
