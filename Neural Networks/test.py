@@ -1,4 +1,4 @@
-import nn
+import neural
 import numpy as np
 
 print("Start test")
